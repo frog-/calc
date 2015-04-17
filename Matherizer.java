@@ -46,6 +46,7 @@ public class Matherizer {
 		 * Whenever a closing and opening bracket appear next to each other, or
 		 * a number appears directly beside a bracket, insert a "*"
 		 **/
+		System.out.println("**********************************");
 		regex = "\\)\\s\\("; //Find closing brackets beside opening brackets
 		niceExpr = implicitBracketMult(niceExpr.split(regex), ") * (");
 
@@ -53,10 +54,10 @@ public class Matherizer {
 		niceExpr = implicitBracketMult(niceExpr.split(regex), "( ( - 1 ) * (");
 
 		regex = "(\\d+)\\s\\("; //Find number directly before an opening bracket
-		niceExpr = (testExpr(regex, niceExpr)) ? implicitNumMult(regex, niceExpr, " * (", false) : niceExpr;
+		niceExpr = (testExpr(regex, niceExpr)) ? implicitNumMult(regex, niceExpr, " * (", true) : niceExpr;
 
 		regex = "\\)\\s(\\d+)"; //Find number directly following a closing bracket
-		niceExpr = (testExpr(regex, niceExpr)) ? implicitNumMult(regex, niceExpr, ") * ", true) : niceExpr;
+		niceExpr = (testExpr(regex, niceExpr)) ? implicitNumMult(regex, niceExpr, ") * ", false) : niceExpr;
 
 		/**
 		 * Handle negative values:
@@ -123,7 +124,7 @@ public class Matherizer {
 		/**
 		 * Great success!
 		 **/
-		System.out.println(niceExpr);
+		System.out.println("NICE EXPRESSSIONNN: " + niceExpr);
 		return niceExpr;
 	}
 
@@ -309,13 +310,12 @@ public class Matherizer {
 	 *
 	 * @return The expression with appropriate replacements
 	 **/
-	public static String implicitBracketMult(String[] expression, String replacement) {
-		String[] middle = expression;
-		String fin = middle[0];
-		for (int i = 1; i < middle.length; i++) {
-			fin += replacement + middle[i]; 
+	public static String implicitBracketMult(String[] exprSegments, String replacement) {
+		String result = exprSegments[0];
+		for (int i = 1; i < exprSegments.length; i++) {
+			result += replacement + exprSegments[i]; 
 		}
-		return fin;
+		return result;
 	}
 
 
@@ -329,15 +329,24 @@ public class Matherizer {
 	 * @return The expression with appropriate replacements
 	 **/
 	public static String implicitNumMult(String regex, String expression, String replacement, boolean before) {
+		//Find all the matches, and capture the numbers involved
 		Pattern validate = Pattern.compile(regex);
 		Matcher match = validate.matcher(expression);
 
+		//Split the expression at the matches, so we can splice in the modified segment
 		String[] matching = expression.split(regex);
-		for (int i = 0; i < matching.length - 1; i++) {
-			String[] seg = { matching[i], matching[i+1] };
-			String replace = (before) ? replacement + match.group(1) : match.group(1) + replacement;
-			expression = implicitBracketMult(seg, replace);
+		String spliced = matching[0];
+
+		//For every match,
+		for (int i = 1; match.find(); i++) {
+			//Take all of the modifications so far, and the next token following the match
+			String[] seg = { spliced, matching[i] };
+			//Prepare the modification based on "before" flag
+			String replace = (before) ? match.group(1) + replacement : replacement + match.group(1);
+			//Splice in the modification and store result as new 'left-hand side'
+			spliced = implicitBracketMult(seg, replace);
 		}
-		return expression;
+
+		return spliced;
 	}
 }
