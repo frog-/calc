@@ -18,42 +18,21 @@ public class Matherizer {
 		/**
 		 * Pre-processing
 		 **/
-		
-
-		/**
-		 * Basic validation tests
-		 **/
-		String regex = "[^\\(\\)\\!\\%\\^\\*\\+\\-\\/\\d\\@\\s\\.]"; //Test for illegal characters
-		if (testExpr(regex, expression)) {
-			return null;
-		}
-		regex = "\\d"; //Make sure a number is present
-		if (!testExpr(regex, expression)) {
-			return null;
-		}
-		regex = "\\([^\\d]+\\)"; //Test for brackets without numbers
-		if (testExpr(regex, expression)) {
-			return null;
-		}
-		regex = "\\d\\s\\d"; //Test for numbers without operators
-		if (testExpr(regex, expression)) {
-			return null;
-		}
-		regex = "([^\\d\\)\\s]|^)\\s*[\\+\\-\\*\\/\\%\\^]|[\\+\\-\\*\\/\\%\\^]\\s*([^\\(\\d\\s]|$)";
-		if (testExpr(regex, expression)) { //Test for operators in impossible places
-			return null;
-		}
 
 		/**
 		 * Format for simpler parsing
+		 * Add whitespace between every operator and term, cut all whitespace down
+		 * to single spaces
 		 **/
+		//String regex = "([\\(\\)\\{\\}\\[\\]\\!\\%\\^\\*\\+\\-\\/\\@]|\\d*\\.?\\d+)";
 		String niceExpr = "";
-		regex = "([\\(\\)\\{\\}\\[\\]\\!\\%\\^\\*\\+\\-\\/\\@]|\\d*\\.?\\d+|ans|log)";
+		String regex = "([^\\d\\.]|\\d*\\.?\\d+)";
 		Pattern validate = Pattern.compile(regex);
 		Matcher match = validate.matcher(expression);
 		while (match.find()) {
 			niceExpr += match.group() + " ";
 		}
+		niceExpr = niceExpr.replaceAll("\\s{2,}", " ");
 
 		/**
 		 * Handle brackets:
@@ -85,19 +64,44 @@ public class Matherizer {
 				if (!brackets.empty() && matchFind(brackets.peek(), letter)) {
 					brackets.pop();
 				} else {
-					return null;
+					return "Failed: bracket mismatch";
 				}
 			}
 		}
 
 		//If any openers were left unclosed, fail
 		if (!brackets.empty()) {
-			return null;
+			return "Failed: odd number of brackets";
 		}
 
 		//Now make all brackets the same (makes the regexes easier on the eyes)
 		niceExpr = niceExpr.replaceAll("[\\[\\{]", "(");
 		niceExpr = niceExpr.replaceAll("[\\]\\}]", ")");
+		System.out.println(niceExpr);
+
+		/**
+		 * Basic validation tests
+		 **/
+		regex = "[^\\(\\)\\!\\%\\^\\*\\+\\-\\/\\d\\@\\s\\.]"; //Test for illegal characters
+		if (testExpr(regex, niceExpr)) {
+			return "Failed: illegal characters";
+		}
+		regex = "\\d"; //Make sure a number is present
+		if (!testExpr(regex, niceExpr)) {
+			return "Failed: no numbers";
+		}
+		regex = "\\([^\\d]+\\)"; //Test for brackets without numbers
+		if (testExpr(regex, niceExpr)) {
+			return "Failed: empty brackets";
+		}
+		regex = "\\d\\s\\d"; //Test for numbers without operators
+		if (testExpr(regex, niceExpr)) {
+			return "Failed: terms unconnected by operator";
+		}
+		regex = "([^\\d\\)\\s]|^)\\s*[\\+\\-\\*\\/\\%\\^]|[\\+\\-\\*\\/\\%\\^]\\s*([^\\(\\d\\s]|$)";
+		if (testExpr(regex, niceExpr)) { //Test for operators in impossible places
+			return "Failed: dangling operator";
+		}
 
 		/**
 		 * Handle implicit multiplication:
@@ -110,7 +114,7 @@ public class Matherizer {
 			"(\\))\\s(\\d+)" };
 
 		for (String search : bracketPatterns) {
-			niceExpr = (testExpr(search, niceExpr)) ? implicitMult(search, niceExpr) : niceExpr;
+			niceExpr = (testExpr(search, niceExpr)) ? preprocess(search, niceExpr, " * ", true) : niceExpr;
 		}
 
 		/**
@@ -303,7 +307,7 @@ public class Matherizer {
 	 **/
 	public static boolean testExpr(String regex, String compare) {
 		Pattern validate = Pattern.compile(regex);
-		Matcher match = validate.matcher(compare);
+		Matcher match = validate.matcher(" " + compare + " ");
 		if (match.find()) {
 			return true;
 		} else {
@@ -314,24 +318,38 @@ public class Matherizer {
 
 	/**
 	 * parseExpression helper function:
-	 * Detects and formats occurrences of implicit multiplication, eg
-	 * (2)(2) or 3(2)
-	 * @return The expression with appropriate replacements
+	 *
+	 * Searches for and converts all matches of a pattern in an expression into the passed 
+	 * replacement.
+	 *
+	 * @param insert The string to splice into the expression at the match points
+	 * @param doubleCapture Whether the insertion occurs between elements that are lost in the matching
+	 *
+	 * @return The expression with all instances of the pattern replaced with the insertion
 	 **/
-	public static String implicitMult(String regex, String expression) {
-		//Find all the matches, and capture the numbers involved
+	public static String preprocess(String regex, String expression, String insert, boolean doubleCapture) {
+		/*
+		 * Split the expression at the matches, so we can splice in the modified segment.
+		 * Add padding to allow for matches that begin and end the expression
+		 */
+		expression = " " + expression + " ";
+		String[] matching = expression.split(regex);
+		for (String s : matching) {
+			System.out.println("Match:" + s);
+		}
+		String spliced = matching[0];
+
+		//Find all the matches, and capture everything specified
 		Pattern validate = Pattern.compile(regex);
 		Matcher match = validate.matcher(expression);
 
-		//Split the expression at the matches, so we can splice in the modified segment
-		String[] matching = expression.split(regex);
-		String spliced = matching[0];
-
 		//For every match,
 		for (int i = 1; match.find(); i++) {
-			//Build the replacement
-			String replacement = match.group(1) + " * " + match.group(2);
 			//Splice in the modification and store result as new 'left-hand side'
+			String replacement = insert;
+			if (doubleCapture) {
+				replacement = match.group(1) + insert + match.group(2);
+			}
 			spliced += replacement + matching[i];
 		}
 

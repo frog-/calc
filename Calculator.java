@@ -4,7 +4,7 @@ import java.util.LinkedList;
 
 public class Calculator extends JFrame {
 	private JPanel panel;
-	private JTextField expressionField, answerField;
+	private JTextField expressionField, answerField, dangerField;
 	private JButton go;
 
 	private final int WINDOW_WIDTH = 500;
@@ -27,26 +27,17 @@ public class Calculator extends JFrame {
 		expressionField = new JTextField(40);
 		expressionField.addKeyListener(new KeyboardListener());
 
-		answerField = new JTextField(15);
+		answerField = new JTextField(20);
 		answerField.setEditable(false);
+
+		dangerField = new JTextField(18);
+		dangerField.setEditable(false);
 		
 		panel = new JPanel();
 
 		panel.add(expressionField);
 		panel.add(answerField);
-	}
-
-	private class GoButtonListener implements ActionListener {
-		public void actionPerformed(ActionEvent e) {
-			String expression = expressionField.getText();
-			String parsedExpression = Matherizer.parseExpression(expression);
-			if (parsedExpression != null) {
-				LinkedList<String> infix = Matherizer.infixConverter(parsedExpression);
-				answerField.setText(Matherizer.crunchExpression(infix));
-			} else {
-				answerField.setText("Malformed expression");
-			}
-		}
+		panel.add(dangerField);
 	}
 
 	private class KeyboardListener implements KeyListener {
@@ -59,11 +50,12 @@ public class Calculator extends JFrame {
 			if (e.getKeyCode() == KeyEvent.VK_ENTER) {
 				String expression = expressionField.getText();
 				String parsedExpression = Matherizer.parseExpression(expression);
-				if (parsedExpression != null) {
+				if (!parsedExpression.contains("Failed")) {
 					LinkedList<String> infix = Matherizer.infixConverter(parsedExpression);
 					answerField.setText(Matherizer.crunchExpression(infix));
+					dangerField.setText("Success");
 				} else {
-					answerField.setText("Malformed expression");
+					dangerField.setText(parsedExpression);
 				}
 			}
 		}
