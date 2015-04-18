@@ -11,7 +11,6 @@ public class Calculator extends JFrame {
 	private final int WINDOW_HEIGHT = 90;
 
 	public Calculator() {
-
 		buildPanel();
 		add(panel);
 
@@ -19,24 +18,22 @@ public class Calculator extends JFrame {
 		setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setResizable(false);
+		setFocusable(true);
 
 		setVisible(true);
 	}
 
 	public void buildPanel() {
 		expressionField = new JTextField(40);
+		expressionField.addKeyListener(new KeyboardListener());
 
 		answerField = new JTextField(15);
 		answerField.setEditable(false);
-
-		go = new JButton("Go");
-		go.addActionListener(new GoButtonListener());
 		
 		panel = new JPanel();
 
 		panel.add(expressionField);
 		panel.add(answerField);
-		panel.add(go);
 	}
 
 	private class GoButtonListener implements ActionListener {
@@ -49,6 +46,31 @@ public class Calculator extends JFrame {
 			} else {
 				answerField.setText("Malformed expression");
 			}
+		}
+	}
+
+	private class KeyboardListener implements KeyListener {
+		@Override
+		public void keyTyped(KeyEvent e) {
+		}
+
+		@Override
+		public void keyPressed(KeyEvent e) {
+			if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+				String expression = expressionField.getText();
+				String parsedExpression = Matherizer.parseExpression(expression);
+				if (parsedExpression != null) {
+					LinkedList<String> infix = Matherizer.infixConverter(parsedExpression);
+					answerField.setText(Matherizer.crunchExpression(infix));
+				} else {
+					answerField.setText("Malformed expression");
+				}
+			}
+		}
+
+		@Override
+		public void keyReleased(KeyEvent e) {
+
 		}
 	}
 

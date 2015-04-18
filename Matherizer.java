@@ -15,10 +15,40 @@ public class Matherizer {
 	 * @return Well-formed expression on success, null on fail
 	 **/
 	public static String parseExpression(String expression) {
+		/**
+		 * Pre-processing
+		 **/
+		
 
-		//Let's start by making it look nicer
+		/**
+		 * Basic validation tests
+		 **/
+		String regex = "[^\\(\\)\\!\\%\\^\\*\\+\\-\\/\\d\\@\\s\\.]"; //Test for illegal characters
+		if (testExpr(regex, expression)) {
+			return null;
+		}
+		regex = "\\d"; //Make sure a number is present
+		if (!testExpr(regex, expression)) {
+			return null;
+		}
+		regex = "\\([^\\d]+\\)"; //Test for brackets without numbers
+		if (testExpr(regex, expression)) {
+			return null;
+		}
+		regex = "\\d\\s\\d"; //Test for numbers without operators
+		if (testExpr(regex, expression)) {
+			return null;
+		}
+		regex = "([^\\d\\)\\s]|^)\\s*[\\+\\-\\*\\/\\%\\^]|[\\+\\-\\*\\/\\%\\^]\\s*([^\\(\\d\\s]|$)";
+		if (testExpr(regex, expression)) { //Test for operators in impossible places
+			return null;
+		}
+
+		/**
+		 * Format for simpler parsing
+		 **/
 		String niceExpr = "";
-		String regex = "([\\(\\)\\{\\}\\[\\]!%\\^\\*\\+\\-\\/\\@]|\\d*\\.?\\d+)";
+		regex = "([\\(\\)\\{\\}\\[\\]\\!\\%\\^\\*\\+\\-\\/\\@]|\\d*\\.?\\d+|ans|log)";
 		Pattern validate = Pattern.compile(regex);
 		Matcher match = validate.matcher(expression);
 		while (match.find()) {
@@ -70,36 +100,12 @@ public class Matherizer {
 		niceExpr = niceExpr.replaceAll("[\\]\\}]", ")");
 
 		/**
-		 * Basic validation tests
-		 **/
-		regex = "[^\\(\\)!%\\^\\*\\+\\-\\/\\d\\@\\s\\.]"; //Test for illegal characters
-		if (testExpr(regex, niceExpr)) {
-			return null;
-		}
-		regex = "\\d"; //Make sure a number is present
-		if (!testExpr(regex, niceExpr)) {
-			return null;
-		}
-		regex = "\\([^\\d]+\\)"; //Test for brackets without numbers
-		if (testExpr(regex, niceExpr)) {
-			return null;
-		}
-		regex = "\\d\\s\\d"; //Test for numbers without operators
-		if (testExpr(regex, niceExpr)) {
-			return null;
-		}
-		regex = "([^\\d\\)\\s]|^)\\s*[\\+\\-\\*\\/]|[\\+\\-\\*\\/]\\s([^\\(\\d\\s]|$)";
-		if (testExpr(regex, niceExpr)) { //Test for operators in impossible places
-			return null;
-		}
-
-		/**
 		 * Handle implicit multiplication:
 		 * Whenever a closing and opening bracket appear next to each other, or
 		 * a number appears directly beside a bracket, insert a "*"
 		 **/
 		String[] bracketPatterns = { 
-			"(\\)\\s\\()",
+			"(\\))\\s(\\()",
 			"(\\d+)\\s(\\()",
 			"(\\))\\s(\\d+)" };
 
@@ -168,7 +174,7 @@ public class Matherizer {
 				opstack.pop();
  			}
 
- 			//Turns eg "-1" into "1 * -1"
+ 			//Turns eg "-1" into "0 - 1"
  			else if (token.equals("@")) {
  				output.add("0");
  				opstack.push("-");
