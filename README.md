@@ -16,6 +16,6 @@ To Do:
   <li>Roots</li>
   <li>Logarithms</li>
   <li>Answer retrieval (adds previous answer to expression as ANS)</li>
-  <li>Press [Enter] to complete</li>
+  <li><strike>Press [Enter] to complete</strike></li>
   <li>Some constants (Pi, Phi, e)</li>
 </ul>
