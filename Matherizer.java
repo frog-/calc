@@ -17,68 +17,12 @@ public class Matherizer {
 	public static String parseExpression(String expression) {
 
 		//Let's start by making it look nicer
-		String regex = "([\\{\\}\\[\\]\\(\\)!%\\^\\*\\+\\-\\/\\@]|\\d*\\.?\\d+)";
+		String niceExpr = "";
+		String regex = "([\\(\\)\\{\\}\\[\\]!%\\^\\*\\+\\-\\/\\@]|\\d*\\.?\\d+)";
 		Pattern validate = Pattern.compile(regex);
 		Matcher match = validate.matcher(expression);
-		String niceExpr = "";
 		while (match.find()) {
 			niceExpr += match.group() + " ";
-		}
-
-		/**
-		 * Basic validation tests
-		 **/
-		regex = "[^\\{\\}\\[\\]\\(\\)!%\\^\\*\\+\\-\\/\\d\\@\\s\\.]"; //Test for illegal characters
-		if (testExpr(regex, niceExpr)) {
-			return null;
-		}
-		regex = "\\d"; //Make sure a number is present
-		if (!testExpr(regex, niceExpr)) {
-			return null;
-		}
-		regex = "\\([^\\d]+\\)"; //Test for brackets without numbers
-		if (testExpr(regex, niceExpr)) {
-			return null;
-		}
-
-		/**
-		 * Handle implicit multiplication:
-		 * Whenever a closing and opening bracket appear next to each other, or
-		 * a number appears directly beside a bracket, insert a "*"
-		 **/
-		System.out.println("**********************************");
-		regex = "\\)\\s\\("; //Find closing brackets beside opening brackets
-		niceExpr = implicitBracketMult(niceExpr.split(regex), ") * (");
-
-		regex = "\\(\\s\\-\\s\\("; //Find a leading negative before a bracket
-		niceExpr = implicitBracketMult(niceExpr.split(regex), "( ( - 1 ) * (");
-
-		regex = "(\\d+)\\s\\("; //Find number directly before an opening bracket
-		niceExpr = (testExpr(regex, niceExpr)) ? implicitNumMult(regex, niceExpr, " * (", true) : niceExpr;
-
-		regex = "\\)\\s(\\d+)"; //Find number directly following a closing bracket
-		niceExpr = (testExpr(regex, niceExpr)) ? implicitNumMult(regex, niceExpr, ") * ", false) : niceExpr;
-
-		/**
-		 * Handle negative values:
-		 * All negative values must be inside brackets by themselves. When found
-		 * mark them with @, which will later be converted to 0 minus the original value.
-		 **/
-		regex = "(\\(\\s\\-\\s\\d*\\.?\\d+\\s\\))";
-		char[] expr = niceExpr.toCharArray();
-		validate = Pattern.compile(regex);
-		match = validate.matcher(niceExpr);
-		//Convert appropriate "-"s to "@"s
-		while (match.find()) {
-			//Because of formatting, the "-" is always at 3rd index
-			expr[match.start() + 2] = '@';
-		}
-		niceExpr = String.valueOf(expr);
-
-		//Test for operators in impossible places
-		regex = "([^\\d\\)\\s]|^)\\s*[\\+\\-\\*\\/]|[\\+\\-\\*\\/]\\s([^\\(\\d\\s]|$)|\\d\\s\\d";
-		if (testExpr(regex, niceExpr)) {
-			return null;
 		}
 
 		/**
@@ -94,9 +38,9 @@ public class Matherizer {
 			//Determine kind of bracket
 			int bracketType = 0;
 			switch (letter) {
-				case "{": case "(": case "[":
+				case "(": case "{": case "[":
 					bracketType = 1; break; //Found opener
-				case "}": case ")": case "]":
+				case ")": case "}": case "]":
 					bracketType = 2; break; //Found closer
 				default:
 					continue; //Not a bracket; ignore
@@ -120,6 +64,64 @@ public class Matherizer {
 		if (!brackets.empty()) {
 			return null;
 		}
+
+		//Now make all brackets the same (makes the regexes easier on the eyes)
+		niceExpr = niceExpr.replaceAll("[\\[\\{]", "(");
+		niceExpr = niceExpr.replaceAll("[\\]\\}]", ")");
+
+		/**
+		 * Basic validation tests
+		 **/
+		regex = "[^\\(\\)!%\\^\\*\\+\\-\\/\\d\\@\\s\\.]"; //Test for illegal characters
+		if (testExpr(regex, niceExpr)) {
+			return null;
+		}
+		regex = "\\d"; //Make sure a number is present
+		if (!testExpr(regex, niceExpr)) {
+			return null;
+		}
+		regex = "\\([^\\d]+\\)"; //Test for brackets without numbers
+		if (testExpr(regex, niceExpr)) {
+			return null;
+		}
+		regex = "\\d\\s\\d"; //Test for numbers without operators
+		if (testExpr(regex, niceExpr)) {
+			return null;
+		}
+		regex = "([^\\d\\)\\s]|^)\\s*[\\+\\-\\*\\/]|[\\+\\-\\*\\/]\\s([^\\(\\d\\s]|$)";
+		if (testExpr(regex, niceExpr)) { //Test for operators in impossible places
+			return null;
+		}
+
+		/**
+		 * Handle implicit multiplication:
+		 * Whenever a closing and opening bracket appear next to each other, or
+		 * a number appears directly beside a bracket, insert a "*"
+		 **/
+		String[] bracketPatterns = { 
+			"(\\)\\s\\()",
+			"(\\d+)\\s(\\()",
+			"(\\))\\s(\\d+)" };
+
+		for (String search : bracketPatterns) {
+			niceExpr = (testExpr(search, niceExpr)) ? implicitMult(search, niceExpr) : niceExpr;
+		}
+
+		/**
+		 * Handle negative values:
+		 * All negative values must be inside brackets by themselves. When found
+		 * mark them with @, which will later be converted to zero minus the value
+		 **/
+		regex = "(\\(\\s\\-\\s(\\(|\\d*\\.?\\d+\\s\\)))";
+		char[] expr = niceExpr.toCharArray();
+		validate = Pattern.compile(regex);
+		match = validate.matcher(niceExpr);
+		//Convert appropriate "-"s to "@"s
+		while (match.find()) {
+			//Because of formatting, the "-" is always the 3rd element
+			expr[match.start() + 2] = '@';
+		}
+		niceExpr = String.valueOf(expr);
 
 		/**
 		 * Great success!
@@ -149,7 +151,7 @@ public class Matherizer {
 
 		for (String token : tokens) {
 			//Opening brackets are always added to opstack
-			if (token.equals("(") || token.equals("{") || token.equals("[")) {
+			if (token.equals("(")) {
 				opstack.push(token);
 			}
 
@@ -159,14 +161,14 @@ public class Matherizer {
 			}
 
 			//Closing brackets cause opstack to pop until an opening bracket is met
-			else if (token.equals(")") || token.equals("}") || token.equals("]")) {
+			else if (token.equals(")")) {
 				while (!opstack.empty() && !matchFind(opstack.peek(), token)) {
 					output.add(opstack.pop());
 				}
 				opstack.pop();
  			}
 
- 			//Turns eg "-1" into "0 - 1"
+ 			//Turns eg "-1" into "1 * -1"
  			else if (token.equals("@")) {
  				output.add("0");
  				opstack.push("-");
@@ -187,6 +189,7 @@ public class Matherizer {
 		}
 
 		//Return finalized expression
+		System.out.println("Postfix: " + output);
 		return output;
 	}
 
@@ -201,10 +204,12 @@ public class Matherizer {
 		Stack<String> terms = new Stack<>();
 
 		while (!expression.isEmpty()) {
-			//Determine term or operator
+			//Test if we're looking at a term or an operator
 			if (Character.isDigit(expression.peek().charAt(0))) {
+				//If it is a term, add it to the stack
 				terms.push(expression.remove());
 			} else {
+				//If it is an operator, pop twice, do math, and push the result to the stack
 				double b = Double.parseDouble(terms.pop());
 				double a = Double.parseDouble(terms.pop());
 				String operator = expression.pop();
@@ -233,7 +238,6 @@ public class Matherizer {
 				terms.push(String.valueOf(result));
 			}
 		}
-
 		return terms.pop();
 	}
 
@@ -248,7 +252,7 @@ public class Matherizer {
 		if (open.equals("(") && close.equals(")") ||
 			open.equals("{") && close.equals("}") ||
 			open.equals("[") && close.equals("]")) {
-				return true;
+			return true;
 		} else {
 			return false;
 		}
@@ -304,31 +308,11 @@ public class Matherizer {
 
 	/**
 	 * parseExpression helper function:
-	 * Splices "replacement" into the expression at the point for all
-	 * instances of the pattern matching. This function solely handles
-	 * brackets, and cannot splice numbers
-	 *
+	 * Detects and formats occurrences of implicit multiplication, eg
+	 * (2)(2) or 3(2)
 	 * @return The expression with appropriate replacements
 	 **/
-	public static String implicitBracketMult(String[] exprSegments, String replacement) {
-		String result = exprSegments[0];
-		for (int i = 1; i < exprSegments.length; i++) {
-			result += replacement + exprSegments[i]; 
-		}
-		return result;
-	}
-
-
-	/**
-	 * parseExpression helper function:
-	 * Splices "replacement" into the expression at the point for all
-	 * instances of the pattern matching. This function allows for numerical
-	 * values to be spliced. The argument "before" determines whether the
-	 * number appears before or after the bracket.
-	 *
-	 * @return The expression with appropriate replacements
-	 **/
-	public static String implicitNumMult(String regex, String expression, String replacement, boolean before) {
+	public static String implicitMult(String regex, String expression) {
 		//Find all the matches, and capture the numbers involved
 		Pattern validate = Pattern.compile(regex);
 		Matcher match = validate.matcher(expression);
@@ -339,12 +323,10 @@ public class Matherizer {
 
 		//For every match,
 		for (int i = 1; match.find(); i++) {
-			//Take all of the modifications so far, and the next token following the match
-			String[] seg = { spliced, matching[i] };
-			//Prepare the modification based on "before" flag
-			String replace = (before) ? match.group(1) + replacement : replacement + match.group(1);
+			//Build the replacement
+			String replacement = match.group(1) + " * " + match.group(2);
 			//Splice in the modification and store result as new 'left-hand side'
-			spliced = implicitBracketMult(seg, replace);
+			spliced += replacement + matching[i];
 		}
 
 		return spliced;
